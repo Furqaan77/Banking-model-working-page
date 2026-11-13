@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A1328">
 <meta name="description" content="How the AI Risk Score Card decides three personal-loan applications at a fictional UAE bank.">
 <title>Three Applicants, One Rulebook</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,7 +34,6 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body)}
 #stage{width:1280px;height:720px;position:relative;flex:none;transform-origin:top center;margin-top:10px;overflow:hidden;
   background:var(--bg);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.45),0 0 0 1px var(--line)}
 #hint{position:fixed;left:0;right:0;bottom:max(14px,env(safe-area-inset-bottom,0px));text-align:center;font-size:13px;color:var(--muted);display:none}
-@media (orientation:portrait) and (max-width:700px){#hint{display:block}}
 
 /* atmosphere */
 .atmo{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -178,10 +178,11 @@ h2 em{font-style:normal;color:var(--teal)}
 .lane{position:relative;padding:12px 0}
 .lane .who{display:flex;gap:10px;align-items:center;font:700 16px var(--f-disp);font-stretch:108%}
 .lane .who .avatar{--s:36px}
-.lane .rail2{position:absolute;left:180px;right:160px;top:50%;height:2px;background:var(--line);transform:translateY(-1px)}
-.lane .tok{position:absolute;top:50%;left:180px;width:14px;height:14px;margin-top:-7px;border-radius:50%;background:var(--cc);box-shadow:0 0 0 4px color-mix(in srgb,var(--cc) 30%,transparent),0 0 18px var(--cc);opacity:0;z-index:2}
+.lane{--tl:180px;--tr:172px;--rr:160px}
+.lane .rail2{position:absolute;left:var(--tl);right:var(--rr);top:50%;height:2px;background:var(--line);transform:translateY(-1px)}
+.lane .tok{position:absolute;top:50%;left:var(--tl);width:14px;height:14px;margin-top:-7px;border-radius:50%;background:var(--cc);box-shadow:0 0 0 4px color-mix(in srgb,var(--cc) 30%,transparent),0 0 18px var(--cc);opacity:0;z-index:2}
 .scene.on .lane .tok{animation:run var(--run,2.4s) cubic-bezier(.45,0,.55,1) both;animation-delay:var(--d)}
-@keyframes run{0%{opacity:0;left:180px}8%{opacity:1}92%{opacity:1}100%{opacity:0;left:calc(100% - 172px)}}
+@keyframes run{0%{opacity:0;left:var(--tl)}8%{opacity:1}92%{opacity:1}100%{opacity:0;left:calc(100% - var(--tr))}}
 .res{position:relative;z-index:1;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;font:600 15px var(--f-mono);
   background:var(--panel);border:1px solid var(--line)}
 .res.ok{color:var(--ok)} .res.bad{color:var(--stop);background:rgba(255,107,87,.12);border-color:rgba(255,107,87,.55)}
@@ -356,6 +357,97 @@ h2 em{font-style:normal;color:var(--teal)}
 .cb:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
 .cb[disabled]{opacity:.35;cursor:default}
 
+/* ---------- phone layout: a real portrait layout, not a shrunken slide ---------- */
+.m-only{display:none}
+#viewport.vm{display:block;background:var(--bg)}
+#stage.m{width:100%;height:100%;border-radius:0;box-shadow:none;transform:none!important;margin-top:0;display:flex;flex-direction:column}
+#stage.m .m-only{display:block}
+#stage.m .bar{position:relative;flex:none;height:50px;padding:0 18px}
+#stage.m .aud{display:none}
+#stage.m .rail{position:relative;flex:none;left:auto;right:auto;top:auto;height:30px;margin:0 18px}
+#stage.m .rail::before,#stage.m .rail .fill{top:calc(50% - 1px)}
+#stage.m .node{font-size:0;gap:0;padding:0}
+#stage.m .node.now i{transform:scale(1.15)}
+#stage.m .scenes{position:relative;top:auto;height:auto;flex:1;min-height:0}
+#stage.m .scene{padding:8px 18px 18px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+#stage.m h2{font-size:25px;line-height:1.1}
+#stage.m .eyebrow{font-size:10.5px;letter-spacing:.12em}
+#stage.m .head{margin-bottom:14px}
+#stage.m .ctrl{position:relative;flex:none;height:auto;grid-template-columns:auto 1fr;grid-template-areas:"cap cap" "count btns";
+  gap:10px 12px;padding:12px 18px calc(12px + env(safe-area-inset-bottom,0px))}
+#stage.m #caption{grid-area:cap;font-size:14px;line-height:1.45}
+#stage.m .count{grid-area:count}
+#stage.m .btns{grid-area:btns;justify-self:end}
+#stage.m .cb{width:44px;height:44px} #stage.m .cb.main{width:52px;height:52px}
+/* title */
+#stage.m .s0 .inner{gap:14px;margin-top:0}
+#stage.m .s0 h1{font-size:42px;font-stretch:112%}
+#stage.m .s0 p{font-size:15px}
+#stage.m .trio .avatar{--s:48px}
+#stage.m .s0 .m-only{font-size:12px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+#stage.m .s0 .m-only b{color:var(--ink)}
+/* applicants */
+#stage.m .people{grid-template-columns:1fr;gap:12px}
+#stage.m .pcard{padding:14px 16px;gap:10px;grid-template-columns:repeat(3,1fr)}
+#stage.m .pcard .top{grid-column:1 / -1}
+#stage.m .pcard .avatar{--s:42px}
+#stage.m .pcard .nm{font-size:19px}
+#stage.m .stat{display:grid;gap:2px;padding-top:8px}
+#stage.m .stat span{font-size:11px}
+#stage.m .stat b{font-size:15px}
+#stage.m .pcard .stat:last-child,#stage.m .foot{display:none}
+/* data in */
+#stage.m .s2grid{grid-template-columns:1fr;gap:16px}
+#stage.m .s2grid>*{min-width:0}
+#stage.m .flow{transform:scale(var(--fz,.6));transform-origin:top left;margin-bottom:calc(-370px * (1 - var(--fz,.6)))}
+#stage.m .calc{gap:10px}
+#stage.m .calc .f{font-size:12.5px;padding:8px 12px}
+#stage.m .crow .val{font-size:17px}
+/* rule lanes */
+#stage.m .lanegrid{grid-template-columns:1fr;gap:16px}
+#stage.m .lanegrid>*{min-width:0}
+#stage.m .lhead,#stage.m .lane{grid-template-columns:40px repeat(var(--n),minmax(0,1fr));gap:6px}
+#stage.m .lhead>div:last-child,#stage.m .lane .end,#stage.m .lane .who .nm{display:none}
+#stage.m .lhead div{font-size:10px;padding:0;letter-spacing:0}
+#stage.m .lhead div b{font-size:11px}
+#stage.m .lane{--tl:48px;--tr:16px;--rr:6px;padding:7px 0!important}
+#stage.m .lane .who .avatar{--s:34px}
+#stage.m .res{height:42px!important;font-size:13px!important;gap:3px;border-radius:8px}
+#stage.m .res svg{width:12px;height:12px}
+#stage.m .side{padding:14px 16px;gap:10px}
+/* grade */
+#stage.m .scalewrap{padding-top:48px}
+#stage.m .pinrow{height:46px}
+#stage.m .gpin .avatar{--s:28px}
+#stage.m .gpin::after{height:10px}
+#stage.m .scale{gap:3px}
+#stage.m .scale div{height:40px;font-size:14px;border-radius:6px}
+#stage.m .scan{top:48px;height:40px}
+#stage.m .zl{grid-template-columns:1fr;gap:4px;font-size:12px}
+#stage.m .zl div{border-top:0;border-left:3px solid currentColor;padding:0 0 0 8px}
+#stage.m .gtiles{grid-template-columns:1fr;gap:10px;margin-top:16px}
+#stage.m .gt{padding:10px 14px}
+#stage.m .gt .g{font-size:24px}
+/* decision */
+#stage.m .merge{grid-template-columns:1fr;gap:10px}
+#stage.m .mcol{padding:12px 14px;gap:8px}
+#stage.m .conv,#stage.m .mcol .note{display:none}
+#stage.m .verdict{font-size:16px;padding:9px 12px}
+#stage.m .law{font-size:15px;margin-top:14px}
+/* people + audit */
+#stage.m .s8grid{grid-template-columns:1fr;gap:16px}
+#stage.m .hrow{grid-template-columns:34px 16px 38px 1fr;gap:8px;padding:10px 12px;margin-bottom:8px}
+#stage.m .hrow .avatar{--s:34px}
+#stage.m .role{width:38px;height:38px}
+#stage.m .hrow .tx span{display:none}
+#stage.m .blk{grid-template-columns:38px 1fr auto;gap:8px;font-size:11.5px;padding:8px 10px}
+#stage.m .link{margin-left:28px;height:10px}
+/* summary */
+#stage.m .sumrow{grid-template-columns:1fr;gap:10px}
+#stage.m .sc{padding:12px 14px;gap:8px}
+#stage.m .jobs{grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+#stage.m .truth{grid-template-columns:1fr}
+
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
   .dot{display:none}
@@ -423,7 +515,7 @@ function lanes(cols, key, vals, endText, base){
     const d = base + li*0.75;
     const fails = p[key].filter(x=>!x).length;
     h += `<div class="lane" style="--n:${n};--cc:${p.cc}"><div class="rail2"></div><span class="tok" style="--d:${d}s;--run:${run}s"></span>
-      <div class="who">${av(p)}${p.name}</div>`;
+      <div class="who">${av(p)}<span class="nm">${p.name}</span></div>`;
     cols.forEach((c,ci)=>{
       const ok = p[key][ci], t = d + run*(ci+0.6)/(n+0.4);
       h += `<div class="res ${ok?"ok":"bad"}" style="--d:${t.toFixed(2)}s;--d2:${(t+.5).toFixed(2)}s">${ok?I.ok:I.x}${vals(p,ci)}</div>`;
@@ -438,6 +530,7 @@ function lanes(cols, key, vals, endText, base){
 const S = [];
 S.push({rail:-1,dur:9000,cls:"s0",cap:"A walkthrough of how the platform decides a loan. It plays by itself; use the buttons or the arrow keys to pause or move.",
 html:`<div class="inner">
+  <div class="m-only in" style="--d:.1s">Prepared for <b>Mr Tanveer</b> and <b>Mr Abul Faisal</b></div>
   <div class="eyebrow in" style="--d:.2s">How the AI Risk Score Card decides a loan</div>
   <h1><span class="in" style="--d:.35s">Three applicants.</span><span class="t2 in" style="--d:.6s">One rulebook.</span></h1>
   <div class="trio">${P.map((p,i)=>av(p).replace('class="avatar"',`class="avatar" style="--d:${1.1+i*.18}s;--cc:${p.cc}"`)).join("")}</div>
@@ -622,13 +715,29 @@ railEl.insertAdjacentHTML("beforeend", RAIL.map((r,i)=>`<button class="node" dat
 
 /* ---------- scale stage to fit ---------- */
 const stage = document.getElementById("stage");
+const viewport = document.getElementById("viewport");
 function fit(){
   const vv = window.visualViewport;
   const w = Math.min(innerWidth, vv ? vv.width : innerWidth), h = Math.min(innerHeight, vv ? vv.height : innerHeight);
+  const mobile = w < 760;                       // phones and small tablets in portrait get their own layout
+  stage.classList.toggle("m", mobile); viewport.classList.toggle("vm", mobile);
+  if(mobile){
+    stage.style.transform = "";
+    stage.style.setProperty("--fz", Math.min(1, (stage.clientWidth - 36) / 620).toFixed(3));
+    return;
+  }
   const pad = w > 700 ? 56 : 16;               // room so nothing touches or slips under the viewer's edges
   const s = Math.min((w - pad) / 1280, (h - pad) / 720);
   stage.style.transform = `scale(${s})`;
 }
+// swipe between scenes on touch screens
+let tx = null, ty = null;
+stage.addEventListener("touchstart", e=>{ const t=e.touches[0]; tx=t.clientX; ty=t.clientY; }, {passive:true});
+stage.addEventListener("touchend", e=>{
+  if(tx===null) return;
+  const t=e.changedTouches[0], dx=t.clientX-tx, dy=t.clientY-ty; tx=ty=null;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)*1.5 && !e.target.closest("button")) go(cur + (dx<0 ? 1 : -1));
+}, {passive:true});
 addEventListener("resize", fit); if(window.visualViewport) visualViewport.addEventListener("resize", fit); fit();
 
 /* ---------- player ---------- */
