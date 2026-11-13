@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="How the AI Risk Score Card decides three personal-loan applications at a fictional UAE bank.">
+<title>Three Applicants, One Rulebook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a fixed 1280x720 presentation stage, scaled to fit any screen (no scrolling).
+   Bar (brand) / journey rail (where the application is) / scene / caption + controls.
+   One visual world on purpose: a night-navy credit room lit in the bank's teal. */
+:root{
+  color-scheme:dark;
+  --bg:#0A1328; --navy:#14213D; --panel:#111D38; --panel2:#16264A; --line:rgba(150,180,215,.18); --line2:rgba(150,180,215,.32);
+  --ink:#EAF1F7; --muted:#93A7BC; --dim:#5F7590;
+  --teal:#1FB5AA; --teal-deep:#0F7B7B; --glow:rgba(31,181,170,.35);
+  --ok:#3DD68C; --refer:#F2B33D; --stop:#FF6B57;
+  --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a;
+  --f-disp:"Archivo","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body)}
+*{box-sizing:border-box}
+#viewport{position:fixed;inset:0;display:grid;place-items:center;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);background:
+  radial-gradient(1200px 700px at 50% 40%,#0F1D3D 0%,var(--bg) 70%)}
+#viewport{align-items:start}
+#stage{width:1280px;height:720px;position:relative;flex:none;transform-origin:top center;margin-top:10px;overflow:hidden;
+  background:var(--bg);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.45),0 0 0 1px var(--line)}
+#hint{position:fixed;left:0;right:0;bottom:max(14px,env(safe-area-inset-bottom,0px));text-align:center;font-size:13px;color:var(--muted);display:none}
+@media (orientation:portrait) and (max-width:700px){#hint{display:block}}
+
+/* atmosphere */
+.atmo{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.atmo .grid{position:absolute;inset:-40px;background-image:
+  linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:40px 40px;opacity:.22;mask-image:radial-gradient(ellipse at 60% 45%,#000 20%,transparent 75%);
+  animation:gridmove 40s linear infinite}
+@keyframes gridmove{to{transform:translate(40px,40px)}}
+.atmo .orb{position:absolute;width:620px;height:620px;border-radius:50%;filter:blur(60px);opacity:.28;
+  background:radial-gradient(circle,var(--teal-deep),transparent 65%);animation:drift 18s ease-in-out infinite alternate}
+.atmo .orb.b{width:480px;height:480px;right:-140px;bottom:-160px;background:radial-gradient(circle,#2a78d6,transparent 65%);opacity:.16;animation-duration:23s}
+@keyframes drift{from{transform:translate(-120px,-80px)}to{transform:translate(380px,120px)}}
+
+/* top bar */
+.bar{position:absolute;left:0;right:0;top:0;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 32px;
+  border-bottom:1px solid var(--line);background:rgba(10,19,40,.6);backdrop-filter:blur(6px);z-index:3}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--f-disp);font-weight:700;font-stretch:110%;font-size:15px;letter-spacing:.01em}
+.brand svg{width:24px;height:24px}
+.aud{font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.aud b{color:var(--ink);font-weight:600}
+
+/* journey rail */
+.rail{position:absolute;left:32px;right:32px;top:56px;height:60px;display:grid;grid-template-columns:repeat(9,1fr);align-items:center;z-index:3}
+.rail::before{content:"";position:absolute;left:5.5%;right:5.5%;top:23px;height:2px;background:var(--line)}
+.rail .fill{position:absolute;left:5.5%;top:23px;height:2px;background:linear-gradient(90deg,var(--teal-deep),var(--teal));width:0;transition:width .8s cubic-bezier(.6,0,.2,1);box-shadow:0 0 12px var(--glow)}
+.node{position:relative;display:grid;justify-items:center;gap:6px;background:none;border:0;color:var(--dim);cursor:pointer;font:500 11.5px var(--f-body);padding:8px 0 0;z-index:1}
+.node i{width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--line2);transition:all .4s}
+.node.done{color:var(--muted)} .node.done i{background:var(--teal-deep);border-color:var(--teal)}
+.node.now{color:var(--ink)} .node.now i{background:var(--teal);border-color:var(--teal);box-shadow:0 0 0 6px rgba(31,181,170,.18),0 0 18px var(--glow);transform:scale(1.25)}
+.node:focus-visible{outline:2px solid var(--teal);outline-offset:4px;border-radius:6px}
+
+/* scenes */
+.scenes{position:absolute;left:0;right:0;top:116px;height:524px}
+.scene{position:absolute;inset:0;padding:14px 48px 18px;opacity:0;visibility:hidden;transform:translateX(60px) scale(.985);filter:blur(8px);
+  transition:opacity .7s ease,transform .8s cubic-bezier(.2,.8,.2,1),filter .7s ease,visibility 0s .8s}
+.scene.on{opacity:1;visibility:visible;transform:none;filter:none;transition:opacity .7s ease .15s,transform .8s cubic-bezier(.2,.8,.2,1) .15s,filter .7s ease .15s,visibility 0s}
+.scene.past{transform:translateX(-60px) scale(.985)}
+.scene:not(.s0){display:flex;flex-direction:column}
+.scene:not(.s0)>.head{margin-bottom:0}
+.scene:not(.s0)>.head+*{margin-top:auto}
+.scene:not(.s0)>:last-child{margin-bottom:auto}
+.lane{padding:16px 0!important}
+.res{height:52px!important;font-size:16px!important}
+.eyebrow{font:600 11.5px var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--teal)}
+h1,h2{font-family:var(--f-disp);margin:0;font-stretch:118%;letter-spacing:-.015em;text-wrap:balance}
+h2{font-size:33px;font-weight:800;line-height:1.05;margin-top:6px}
+h2 em{font-style:normal;color:var(--teal)}
+.head{margin-bottom:18px}
+
+/* animation utilities: everything animates in when its scene turns on */
+.scene.on .in{animation:rise .75s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0s)}
+.scene.on .pop{animation:pop .55s cubic-bezier(.2,.9,.3,1.35) both;animation-delay:var(--d,0s)}
+.scene.on .fadein{animation:fade .8s ease both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+#stage.paused *,#stage.paused *::before,#stage.paused *::after{animation-play-state:paused!important}
+
+.avatar{width:var(--s,40px);height:var(--s,40px);border-radius:50%;flex:none;display:grid;place-items:center;background:var(--cc);color:#fff;
+  font:800 calc(var(--s,40px) * .42) var(--f-disp);box-shadow:0 0 0 3px rgba(255,255,255,.06),0 6px 18px color-mix(in srgb,var(--cc) 45%,transparent)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;font:700 13px var(--f-disp);font-stretch:105%;white-space:nowrap}
+.p-ok{background:rgba(61,214,140,.14);color:var(--ok);box-shadow:inset 0 0 0 1px rgba(61,214,140,.35)}
+.p-refer{background:rgba(242,179,61,.14);color:var(--refer);box-shadow:inset 0 0 0 1px rgba(242,179,61,.4)}
+.p-stop{background:rgba(255,107,87,.14);color:var(--stop);box-shadow:inset 0 0 0 1px rgba(255,107,87,.42)}
+.pill svg{width:14px;height:14px}
+
+/* ---------- S0 title ---------- */
+.s0{display:grid;place-items:center;text-align:center}
+.s0 .inner{display:grid;justify-items:center;gap:16px;margin-top:-10px}
+.s0 h1{font-size:76px;font-weight:900;line-height:.98;font-stretch:125%}
+.s0 h1 span{display:block}
+.s0 h1 .t2{background:linear-gradient(90deg,var(--teal),#7EE3D9);-webkit-background-clip:text;background-clip:text;color:transparent}
+.s0 p{font-size:18px;color:var(--muted);max-width:640px;line-height:1.5;margin:0}
+.trio{display:flex;gap:18px;margin-top:6px}
+.trio .avatar{--s:58px}
+.scene.on .trio .avatar{animation:bounce .9s cubic-bezier(.2,.9,.3,1.4) both;animation-delay:var(--d)}
+@keyframes bounce{0%{opacity:0;transform:translateY(-70px) scale(.6)}60%{opacity:1;transform:translateY(6px)}100%{transform:none}}
+.chipline{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.tagc{font-size:12.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 12px;background:rgba(255,255,255,.02)}
+.tagc b{color:var(--ink);font-weight:600}
+.press{font:500 13px var(--f-body);color:var(--teal);animation:breathe 2.2s ease-in-out infinite}
+@keyframes breathe{50%{opacity:.4}}
+
+/* ---------- S1 applicants ---------- */
+.people{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.pcard{padding:22px 22px 20px;display:grid;gap:14px;position:relative;overflow:hidden}
+.pcard::after{content:"";position:absolute;inset:0 0 auto;height:3px;background:var(--cc)}
+.pcard .top{display:flex;gap:14px;align-items:center}
+.pcard .avatar{--s:52px}
+.pcard .nm{font:800 24px var(--f-disp);font-stretch:112%}
+.pcard .rl{color:var(--muted);font-size:13.5px}
+.stat{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:10px}
+.stat span{color:var(--muted);font-size:13px}
+.stat b{font:600 21px var(--f-mono)}
+.stat b small{font-size:12px;color:var(--muted);font-weight:500;margin-right:4px}
+.foot{margin-top:18px;color:var(--muted);font-size:13.5px;display:flex;gap:10px;align-items:center}
+
+/* ---------- S2 data ---------- */
+.s2grid{display:grid;grid-template-columns:620px 1fr;gap:34px;align-items:start}
+.flow{position:relative;width:620px;height:370px}
+.flow svg{position:absolute;inset:0}
+.tile{position:absolute;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;font-size:13.5px;line-height:1.25}
+.tile svg{position:static;width:22px;height:22px;flex:none;color:var(--teal)}
+.tile small{display:block;color:var(--muted);font-size:11.5px}
+.platform{position:absolute;left:270px;top:130px;width:150px;height:120px;border-radius:16px;display:grid;place-items:center;text-align:center;
+  background:radial-gradient(circle at 50% 40%,rgba(31,181,170,.28),rgba(15,123,123,.12));border:1px solid var(--teal);font:800 16px var(--f-disp);font-stretch:110%}
+.platform small{display:block;font:500 11.5px var(--f-body);color:var(--muted);margin-top:4px}
+.scene.on .platform{animation:pop .55s cubic-bezier(.2,.9,.3,1.35) .9s both,pulsebox 2.4s ease-in-out 1.6s infinite}
+@keyframes pulsebox{50%{box-shadow:0 0 0 10px rgba(31,181,170,.06),0 0 40px rgba(31,181,170,.35)}}
+.dot{position:absolute;left:0;top:0;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--teal);box-shadow:0 0 12px var(--teal);opacity:0;offset-rotate:0deg}
+.scene.on .dot{animation:travel var(--t,2.2s) linear infinite;animation-delay:var(--d,0s)}
+.dot.bad{background:var(--stop);box-shadow:0 0 12px var(--stop)}
+.scene.on .dot.bad{animation:travelbad 2.2s ease-in infinite;animation-delay:var(--d,0s)}
+@keyframes travel{0%{offset-distance:0%;opacity:0}10%{opacity:1}88%{opacity:1}100%{offset-distance:100%;opacity:0}}
+@keyframes travelbad{0%{offset-distance:0%;opacity:0}15%{opacity:1}85%{offset-distance:100%;opacity:1;transform:scale(1)}100%{offset-distance:100%;opacity:0;transform:scale(2.4)}}
+.blocked{position:absolute;left:421px;top:270px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:rgba(255,107,87,.15);border:1px solid var(--stop);color:var(--stop)}
+.lockb{position:absolute;left:421px;top:96px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:rgba(31,181,170,.15);border:1px solid var(--teal);color:var(--teal)}
+.blocked svg,.lockb svg{width:14px;height:14px}
+.bnd{position:absolute;left:442px;font-size:11px;color:var(--muted);width:170px;line-height:1.3}
+.calc{display:grid;gap:14px}
+.calc .f{font:500 14px var(--f-mono);color:var(--muted);background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.calc .f b{color:var(--ink);font-weight:600}
+.crow{display:grid;grid-template-columns:34px 1fr 64px;gap:12px;align-items:center}
+.crow .avatar{--s:34px}
+.crow .lbl{font-size:12.5px;color:var(--muted);margin-bottom:5px;font-family:var(--f-mono)}
+.track{position:relative;height:14px;border-radius:7px;background:rgba(255,255,255,.06)}
+.track i{position:absolute;inset:0 auto 0 0;border-radius:7px;width:0;background:var(--cc)}
+.scene.on .track i{animation:grow 1.4s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0s)}
+@keyframes grow{from{width:0}to{width:var(--w)}}
+.cap{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--ink);border-radius:2px}
+.cap::after{content:attr(data-l);position:absolute;top:-17px;left:50%;transform:translateX(-50%);font:600 10.5px var(--f-mono);color:var(--ink);white-space:nowrap}
+.crow .val{font:700 20px var(--f-mono);text-align:right}
+
+/* ---------- lanes (S3-S5) ---------- */
+.lanegrid{display:grid;grid-template-columns:1fr 330px;gap:28px;align-items:start}
+.lanes{display:grid;gap:12px}
+.lhead,.lane{display:grid;grid-template-columns:170px repeat(var(--n),1fr) 150px;gap:10px;align-items:center}
+.lhead div{font-size:11.5px;color:var(--muted);letter-spacing:.04em;line-height:1.25;padding:0 4px}
+.lhead div b{display:block;color:var(--ink);font:600 12.5px var(--f-mono);letter-spacing:0;margin-top:2px}
+.lane{position:relative;padding:12px 0}
+.lane .who{display:flex;gap:10px;align-items:center;font:700 16px var(--f-disp);font-stretch:108%}
+.lane .who .avatar{--s:36px}
+.lane .rail2{position:absolute;left:180px;right:160px;top:50%;height:2px;background:var(--line);transform:translateY(-1px)}
+.lane .tok{position:absolute;top:50%;left:180px;width:14px;height:14px;margin-top:-7px;border-radius:50%;background:var(--cc);box-shadow:0 0 0 4px color-mix(in srgb,var(--cc) 30%,transparent),0 0 18px var(--cc);opacity:0;z-index:2}
+.scene.on .lane .tok{animation:run var(--run,2.4s) cubic-bezier(.45,0,.55,1) both;animation-delay:var(--d)}
+@keyframes run{0%{opacity:0;left:180px}8%{opacity:1}92%{opacity:1}100%{opacity:0;left:calc(100% - 172px)}}
+.res{position:relative;z-index:1;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;font:600 15px var(--f-mono);
+  background:var(--panel);border:1px solid var(--line)}
+.res.ok{color:var(--ok)} .res.bad{color:var(--stop);background:rgba(255,107,87,.12);border-color:rgba(255,107,87,.55)}
+.scene.on .res{animation:stamp .5s cubic-bezier(.2,.9,.3,1.5) both;animation-delay:var(--d)}
+.scene.on .res.bad{animation:stamp .5s cubic-bezier(.2,.9,.3,1.5) both,shake .5s ease var(--d2) both;animation-delay:var(--d),var(--d2)}
+@keyframes stamp{from{opacity:.0;transform:scale(1.5)}to{opacity:1;transform:none}}
+@keyframes shake{20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+.res svg{width:15px;height:15px}
+.lane .end{display:flex;justify-content:flex-start}
+.side{padding:18px 20px;display:grid;gap:12px}
+.side .t{font:700 15px var(--f-disp);font-stretch:108%}
+.side .s{font-size:12.5px;color:var(--muted);line-height:1.45}
+.gauge{display:grid;justify-items:center;position:relative}
+.gauge .big{position:absolute;top:58px;font:800 34px var(--f-mono);color:var(--stop)}
+.gauge .sub{position:absolute;top:100px;font-size:12px;color:var(--muted)}
+.arc{stroke-dasharray:314.16;stroke-dashoffset:314.16}
+.scene.on .arc{animation:arcfill 1.8s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d)}
+@keyframes arcfill{to{stroke-dashoffset:var(--off)}}
+.mbar{display:grid;gap:6px}
+.mbar .track{height:16px}
+.src{font-size:11.5px;color:var(--dim);font-family:var(--f-mono)}
+
+/* tighten-only ruler */
+.ruler{position:relative;height:150px;margin-top:4px}
+.ruler .axis{position:absolute;left:0;right:0;top:96px;height:2px;background:var(--line2)}
+.ruler .tick{position:absolute;top:92px;width:1px;height:10px;background:var(--line2)}
+.ruler .tl{position:absolute;top:108px;transform:translateX(-50%);font:500 11px var(--f-mono);color:var(--muted)}
+.ruler .reg{position:absolute;top:18px;bottom:40px;width:2px;background:var(--ink)}
+.ruler .reg span{position:absolute;top:-16px;left:6px;font:600 11px var(--f-mono);white-space:nowrap}
+.ruler .zone{position:absolute;top:18px;bottom:54px;background:repeating-linear-gradient(135deg,rgba(255,107,87,.16) 0 6px,transparent 6px 12px);border-left:0}
+.mk{position:absolute;top:70px;transform:translateX(-50%);display:grid;justify-items:center;gap:2px}
+.mk i{width:18px;height:18px;border-radius:50%;display:block;border:2px solid currentColor;background:var(--bg)}
+.mk b{font:600 11.5px var(--f-mono)}
+.mk.g{color:var(--ok)} .mk.r{color:var(--stop)}
+.scene.on .mk{animation:dropin .6s cubic-bezier(.2,.9,.3,1.4) both;animation-delay:var(--d)}
+.scene.on .mk.r{animation:dropin .6s cubic-bezier(.2,.9,.3,1.4) both,shakemk .5s ease both;animation-delay:var(--d),calc(var(--d) + .7s)}
+@keyframes shakemk{0%,100%{transform:translateX(-50%)}20%,60%{transform:translateX(calc(-50% - 5px))}40%,80%{transform:translateX(calc(-50% + 5px))}}
+@keyframes dropin{from{opacity:0;transform:translate(-50%,-50px)}to{opacity:1;transform:translateX(-50%)}}
+.stampbox{justify-self:start;border:2px solid var(--stop);color:var(--stop);font:800 14px var(--f-disp);font-stretch:115%;letter-spacing:.1em;padding:4px 10px;border-radius:6px;transform:rotate(-4deg)}
+.scene.on .stampbox{animation:stampin .45s cubic-bezier(.2,.9,.3,1.4) both;animation-delay:var(--d)}
+@keyframes stampin{from{opacity:0;transform:rotate(-4deg) scale(2.2)}to{opacity:1;transform:rotate(-4deg)}}
+
+/* layer funnel + code */
+.funnel{display:grid;gap:6px;justify-items:center}
+.layer{height:38px;border-radius:9px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:600 13px var(--f-body)}
+.layer b{font:500 11.5px var(--f-mono);color:var(--muted)}
+.layer.l1{width:100%;background:rgba(42,120,214,.18);box-shadow:inset 0 0 0 1px rgba(42,120,214,.5)}
+.layer.l2{width:86%;background:rgba(31,181,170,.16);box-shadow:inset 0 0 0 1px rgba(31,181,170,.5)}
+.layer.l3{width:72%;background:rgba(61,214,140,.14);box-shadow:inset 0 0 0 1px rgba(61,214,140,.45)}
+.code{font:500 12.5px/1.65 var(--f-mono);background:#081022;border:1px solid var(--line);border-radius:10px;padding:10px 14px;color:#BFD3E6}
+.code .k{color:var(--teal)} .code .s{color:#F2C979}
+.typing{display:block;overflow:hidden;white-space:nowrap;width:0}
+.scene.on .typing{animation:type .9s steps(28,end) both;animation-delay:var(--d)}
+@keyframes type{to{width:100%}}
+
+/* ---------- S6 grade ---------- */
+.scalewrap{position:relative;margin:4px 0 0;padding-top:66px}
+.scale{display:grid;grid-template-columns:repeat(10,1fr);gap:6px}
+.scale div{height:58px;border-radius:10px;display:grid;place-items:center;font:800 22px var(--f-mono);position:relative;overflow:hidden}
+.z1{background:rgba(61,214,140,.13);color:var(--ok)} .z2{background:rgba(242,179,61,.16);color:var(--refer)} .z3{background:rgba(255,107,87,.16);color:var(--stop)}
+.scan{position:absolute;top:66px;height:58px;width:80px;left:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);opacity:0;pointer-events:none}
+.scene.on .scan{animation:scan 1.6s ease-in-out .3s both}
+@keyframes scan{0%{left:-80px;opacity:1}100%{left:100%;opacity:0}}
+.zl{display:grid;grid-template-columns:6fr 2fr 2fr;gap:6px;margin-top:8px;font-size:12.5px}
+.zl div{border-top:2px solid currentColor;padding-top:6px}
+.zl .a{color:var(--ok)} .zl .b{color:var(--refer)} .zl .c{color:var(--stop)}
+.pinrow{position:absolute;top:0;left:0;right:0;height:62px}
+.gpin{position:absolute;top:0;transform:translateX(-50%);display:grid;justify-items:center}
+.gpin .avatar{--s:40px}
+.gpin::after{content:"";width:2px;height:18px;background:var(--cc)}
+.scene.on .gpin{animation:pinfall .8s cubic-bezier(.2,.9,.3,1.35) both;animation-delay:var(--d)}
+@keyframes pinfall{from{opacity:0;transform:translate(-50%,-60px)}to{opacity:1;transform:translateX(-50%)}}
+.gtiles{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:26px}
+.gt{padding:14px 18px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center}
+.gt .avatar{--s:40px;grid-row:span 2}
+.gt .g{font:800 30px var(--f-mono);line-height:1}
+.gt .g small{font:500 13px var(--f-body);color:var(--muted);margin-left:8px}
+.gt .why{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.gt .why span{font-size:12px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.05);color:var(--muted)}
+.gt .why span.neg{color:var(--refer);background:rgba(242,179,61,.1)}
+
+/* ---------- S7 merge ---------- */
+.merge{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.mcol{padding:16px 18px 18px;display:grid;gap:10px;justify-items:center;text-align:center}
+.mcol .who{display:flex;gap:10px;align-items:center;font:800 18px var(--f-disp);font-stretch:110%}
+.mcol .who .avatar{--s:36px}
+.ins{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.inp{border:1px solid var(--line);border-radius:10px;padding:8px;display:grid;gap:3px;position:relative;background:rgba(255,255,255,.02)}
+.inp small{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.inp b{font:700 14px var(--f-disp);font-stretch:105%}
+.inp.strike::after{content:"";position:absolute;left:8px;right:8px;top:55%;height:3px;border-radius:3px;background:var(--stop);transform:scaleX(0);transform-origin:left}
+.scene.on .inp.strike::after{animation:strike .5s ease both;animation-delay:var(--d2)}
+.scene.on .inp.strike{animation:dimout .5s ease both;animation-delay:var(--d2)}
+@keyframes strike{to{transform:scaleX(1)}}
+@keyframes dimout{to{opacity:.55}}
+.inp.glow{border-color:rgba(255,107,87,.6)}
+.scene.on .inp.glow{animation:redglow 1.2s ease both;animation-delay:var(--d2)}
+@keyframes redglow{50%{box-shadow:0 0 24px rgba(255,107,87,.55)}}
+.conv{width:100%;height:46px}
+.conv path{fill:none;stroke:var(--line2);stroke-width:2;stroke-dasharray:80;stroke-dashoffset:80}
+.scene.on .conv path{animation:draw .7s ease both;animation-delay:var(--d)}
+@keyframes draw{to{stroke-dashoffset:0}}
+.verdict{font:800 19px var(--f-disp);font-stretch:112%;padding:12px 18px;border-radius:12px;width:100%;display:flex;align-items:center;justify-content:center;gap:9px}
+.verdict svg{width:20px;height:20px}
+.v-ok{background:rgba(61,214,140,.14);color:var(--ok);box-shadow:inset 0 0 0 1px rgba(61,214,140,.45),0 0 30px rgba(61,214,140,.15)}
+.v-refer{background:rgba(242,179,61,.14);color:var(--refer);box-shadow:inset 0 0 0 1px rgba(242,179,61,.5),0 0 30px rgba(242,179,61,.15)}
+.v-stop{background:rgba(255,107,87,.14);color:var(--stop);box-shadow:inset 0 0 0 1px rgba(255,107,87,.5),0 0 30px rgba(255,107,87,.18)}
+.mcol .note{font-size:12.5px;color:var(--muted);line-height:1.4;min-height:36px}
+.law{margin-top:16px;text-align:center;font:700 17px var(--f-disp);font-stretch:110%}
+.law em{font-style:normal;color:var(--teal)}
+
+/* ---------- S8 people + audit ---------- */
+.s8grid{display:grid;grid-template-columns:1fr 540px;gap:30px}
+.hrow{display:grid;grid-template-columns:40px 30px 46px 1fr;gap:12px;align-items:center;padding:14px 16px;margin-bottom:12px}
+.hrow .avatar{--s:40px}
+.arrow{height:2px;background:var(--line2);position:relative}
+.arrow::after{content:"";position:absolute;right:-1px;top:-4px;border:5px solid transparent;border-left-color:var(--line2)}
+.role{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.role svg{width:24px;height:24px}
+.hrow .tx b{display:block;font:700 15px var(--f-disp);font-stretch:106%}
+.hrow .tx span{font-size:12.5px;color:var(--muted)}
+.chain{display:grid;gap:0;position:relative}
+.blk{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:10px 14px;border-radius:10px;background:#081022;border:1px solid var(--line);font:500 12.5px var(--f-mono);position:relative;transition:border-color .4s,background .4s}
+.blk .n{color:var(--muted)}
+.blk .h{color:var(--teal);font-size:11.5px}
+.link{height:16px;width:2px;margin-left:38px;background:var(--teal);opacity:.6}
+.blk.tam{border-color:var(--stop);background:rgba(255,107,87,.1)}
+.blk.tam .h,.blk.broke .h{color:var(--stop)}
+.blk.broke{border-color:rgba(255,107,87,.5)}
+.link.broke{background:var(--stop);opacity:1;background:repeating-linear-gradient(180deg,var(--stop) 0 3px,transparent 3px 6px)}
+.edit{color:var(--stop);font-weight:600}
+.chainmsg{margin-top:12px;font-size:13px;color:var(--muted);min-height:20px;transition:color .4s}
+.chainmsg.alert{color:var(--stop)}
+
+/* ---------- S9 summary ---------- */
+.sumrow{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.sc{padding:18px 20px;display:grid;gap:10px}
+.sc .who{display:flex;gap:12px;align-items:center}
+.sc .who .avatar{--s:42px}
+.sc .who b{font:800 20px var(--f-disp);font-stretch:110%;display:block}
+.sc .who span{font-size:12.5px;color:var(--muted)}
+.sc .line{font-size:13px;color:var(--muted);line-height:1.45}
+.jobs{margin-top:22px;display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+.job{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.025);display:grid;gap:3px}
+.job b{font:800 14px var(--f-disp);font-stretch:110%}
+.job span{font-size:11.5px;color:var(--muted);line-height:1.35}
+.job.me{border-color:var(--teal);background:rgba(31,181,170,.1);box-shadow:0 0 24px rgba(31,181,170,.15)}
+.truth{margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px;color:var(--muted);line-height:1.45}
+.truth div{display:flex;gap:10px;align-items:flex-start}
+.truth i{flex:none;margin-top:5px;width:8px;height:8px;border-radius:50%}
+.truth b{color:var(--ink)}
+
+/* ---------- footer: caption + controls ---------- */
+.ctrl{position:absolute;left:0;right:0;bottom:0;height:80px;border-top:1px solid var(--line);background:rgba(10,19,40,.75);backdrop-filter:blur(6px);
+  display:grid;grid-template-columns:70px 1fr auto;gap:18px;align-items:center;padding:0 32px;z-index:3}
+.prog{position:absolute;left:0;top:-1px;height:2px;width:0;background:var(--teal);box-shadow:0 0 10px var(--glow)}
+.prog.run{animation:progress var(--dur) linear both}
+@keyframes progress{to{width:100%}}
+.count{font:600 14px var(--f-mono);color:var(--muted)}
+.count b{color:var(--ink);font-size:20px}
+#caption{font-size:15.5px;line-height:1.45;color:#D6E2EE;max-width:880px}
+#caption.swap{animation:capin .6s ease both}
+@keyframes capin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#caption b{color:#fff}
+.btns{display:flex;gap:8px}
+.cb{width:42px;height:42px;border-radius:50%;border:1px solid var(--line2);background:rgba(255,255,255,.03);color:var(--ink);display:grid;place-items:center;cursor:pointer;transition:background .2s,border-color .2s,transform .15s}
+.cb:hover{border-color:var(--teal);background:rgba(31,181,170,.12)}
+.cb:active{transform:scale(.94)}
+.cb.main{width:50px;height:50px;background:var(--teal);border-color:var(--teal);color:#04201E}
+.cb.main:hover{background:#2CC9BD}
+.cb svg{width:18px;height:18px}
+.cb:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+.cb[disabled]{opacity:.35;cursor:default}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  .dot{display:none}
+}
+</style>
+
+</head>
+<body>
+<div id="viewport">
+<div id="stage">
+  <div class="atmo"><div class="grid"></div><div class="orb"></div><div class="orb b"></div></div>
+
+  <div class="bar">
+    <div class="brand"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="#0F7B7B"/><path d="M6 15.5l3.5-4 3 2.5L18 7.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>AI Risk Score Card</div>
+    <div class="aud">Prepared for <b>Mr Tanveer</b> and <b>Mr Abul Faisal</b> · 13 Nov 2026</div>
+  </div>
+
+  <nav class="rail" id="rail" aria-label="Steps"><div class="fill" id="railfill"></div></nav>
+
+  <main class="scenes" id="scenes"></main>
+
+  <footer class="ctrl">
+    <div class="prog" id="prog"></div>
+    <div class="count" id="count"></div>
+    <div id="caption" aria-live="polite"></div>
+    <div class="btns">
+      <button class="cb" id="prev" aria-label="Previous scene"><svg viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="cb main" id="play" aria-label="Pause"><svg id="playsvg" viewBox="0 0 24 24" fill="currentColor"></svg></button>
+      <button class="cb" id="next" aria-label="Next scene"><svg viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="cb" id="restart" aria-label="Start again"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </footer>
+</div>
+</div>
+<div id="hint">Turn your phone sideways for a bigger view.</div>
+
+<script>
+(function(){
+const fmt = n => n.toLocaleString("en-US");
+const I = {
+  ok:'<svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  x:'<svg viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  person:'<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.7" stroke="currentColor" stroke-width="1.8"/><path d="M3 14c.6-2.8 2.6-4.2 5-4.2s4.4 1.4 5 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  play:'<path d="M8 5.5v13l11-6.5z"/>', pause:'<rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/>'
+};
+const P = [
+  {k:"A",name:"Amira",role:"Teacher · expat · 34",cc:"var(--c1)",sal:15000,loan:120000,dbr:32,pay:"4,800",mult:8.0,score:735,grade:1,pd:"0.24%",
+   why:[["Bureau score 735",0],["No late payments",0]],cb:[1,1,1,1],bank:[1,1,1],cred:[1,1],
+   v:"ok",vt:"Approve",note:"Rules passed and the grade is in the safe zone."},
+  {k:"R",name:"Rahul",role:"Sales executive · expat · 29",cc:"var(--c2)",sal:12000,loan:150000,dbr:46,pay:"5,520",mult:12.5,score:600,grade:7,pd:"6.2%",
+   why:[["30-day late payment this year",1],["Debt burden 46%",1]],cb:[1,1,1,1],bank:[1,1,1],cred:[1,1],
+   v:"refer",vt:"Refer to underwriter",note:"Every rule passed, but grade 7 means a person must look."},
+  {k:"O",name:"Omar",role:"Store supervisor · UAE national · 41",cc:"var(--c3)",sal:9000,loan:200000,dbr:53,pay:"4,770",mult:22.2,score:640,grade:4,pd:"1.6%",
+   why:[["Clean payment record",0],["Debt burden 53%",1]],cb:[0,0,1,1],bank:[1,0,1],cred:[1,1],
+   v:"stop",vt:"Decline recommended",note:"The AI said yes. Three rules said no. The rules win."}
+];
+const av = (p,s) => `<span class="avatar" style="--cc:${p.cc}${s?`;--s:${s}px`:""}">${p.k}</span>`;
+const vicon = v => v==="ok"?I.ok:v==="refer"?I.person:I.x;
+
+/* ---------- lanes builder ---------- */
+function lanes(cols, key, vals, endText, base){
+  const n = cols.length, run = 2.2;
+  let h = `<div class="lanes"><div class="lhead" style="--n:${n}"><div></div>${cols.map(c=>`<div>${c[0]}<b>${c[1]}</b></div>`).join("")}<div></div></div>`;
+  P.forEach((p,li)=>{
+    const d = base + li*0.75;
+    const fails = p[key].filter(x=>!x).length;
+    h += `<div class="lane" style="--n:${n};--cc:${p.cc}"><div class="rail2"></div><span class="tok" style="--d:${d}s;--run:${run}s"></span>
+      <div class="who">${av(p)}${p.name}</div>`;
+    cols.forEach((c,ci)=>{
+      const ok = p[key][ci], t = d + run*(ci+0.6)/(n+0.4);
+      h += `<div class="res ${ok?"ok":"bad"}" style="--d:${t.toFixed(2)}s;--d2:${(t+.5).toFixed(2)}s">${ok?I.ok:I.x}${vals(p,ci)}</div>`;
+    });
+    const te = d + run;
+    h += `<div class="end"><span class="pill ${fails?"p-stop":"p-ok"} pop" style="--d:${te.toFixed(2)}s">${fails?I.x+fails+" broken":I.ok+"All passed"}</span></div></div>`;
+  });
+  return h + `</div>`;
+}
+
+/* ---------- scenes ---------- */
+const S = [];
+S.push({rail:-1,dur:9000,cls:"s0",cap:"A walkthrough of how the platform decides a loan. It plays by itself; use the buttons or the arrow keys to pause or move.",
+html:`<div class="inner">
+  <div class="eyebrow in" style="--d:.2s">How the AI Risk Score Card decides a loan</div>
+  <h1><span class="in" style="--d:.35s">Three applicants.</span><span class="t2 in" style="--d:.6s">One rulebook.</span></h1>
+  <div class="trio">${P.map((p,i)=>av(p).replace('class="avatar"',`class="avatar" style="--d:${1.1+i*.18}s;--cc:${p.cc}"`)).join("")}</div>
+  <p class="in" style="--d:1.6s">Three people ask a UAE bank for a personal loan on the same morning. Follow each one through the regulator's rules, the bank's policy and the AI grade, and see why the rules always have the last word.</p>
+  <div class="chipline in" style="--d:1.9s"><span class="tagc"><b>Bank:</b> Demo Bank UAE (fictional)</span><span class="tagc"><b>Product:</b> personal loan, 48 months</span><span class="tagc"><b>Numbers:</b> produced by running the platform's code</span></div>
+</div>`});
+
+S.push({rail:0,dur:10000,cap:"Three customers, three different situations. All three are fictional, but their numbers were run through the real engine.",
+html:`<div class="head"><div class="eyebrow in">The applicants</div><h2 class="in" style="--d:.1s">Three people apply on the <em>same morning</em></h2></div>
+<div class="people">${P.map((p,i)=>`<div class="card pcard in" style="--cc:${p.cc};--d:${.35+i*.25}s">
+  <div class="top">${av(p)}<div><div class="nm">${p.name}</div><div class="rl">${p.role}</div></div></div>
+  <div class="stat"><span>Monthly salary</span><b><small>AED</small><span data-count="${p.sal}" data-delay="${.8+i*.25}">0</span></b></div>
+  <div class="stat"><span>Loan asked for</span><b><small>AED</small><span data-count="${p.loan}" data-delay="${1+i*.25}">0</span></b></div>
+  <div class="stat"><span>Credit bureau score</span><b><span data-count="${p.score}" data-delay="${1.2+i*.25}">0</span></b></div>
+  <div class="stat"><span>Term</span><b>48 <small>months</small></b></div>
+</div>`).join("")}</div>
+<div class="foot fadein" style="--d:2s">${I.person.replace("<svg",'<svg style="width:16px;height:16px;color:var(--teal)"')}Each application is handled by the same rules and the same model. No one gets special treatment, and every step is recorded.</div>`});
+
+S.push({rail:1,dur:11000,cap:"The data stays <b>inside the bank</b>. The only outside link is the approved connection to the AECB credit bureau; everything else is blocked.",
+html:`<div class="head"><div class="eyebrow in">Step 1 · Data in</div><h2 class="in" style="--d:.1s">The platform gathers the facts, <em>inside the bank</em></h2></div>
+<div class="s2grid">
+  <div class="flow fadein" style="--d:.3s">
+    <svg width="620" height="370" fill="none">
+      <rect x="10" y="10" width="425" height="350" rx="18" stroke="#1FB5AA" stroke-opacity=".55" stroke-dasharray="6 6"/>
+      <text x="28" y="34" fill="#93A7BC" font-size="11.5" font-family="IBM Plex Sans,Segoe UI,sans-serif" letter-spacing="1.5">INSIDE DEMO BANK UAE'S OWN COMPUTERS</text>
+      <path d="M205 92 C 245 92, 240 170, 270 172" stroke="rgba(150,180,215,.35)" stroke-width="2"/>
+      <path d="M205 238 C 245 238, 240 208, 270 206" stroke="rgba(150,180,215,.35)" stroke-width="2"/>
+      <path d="M470 110 L 442 110 C 425 110, 430 165, 420 168" stroke="rgba(150,180,215,.35)" stroke-width="2"/>
+      <path d="M470 284 L 448 284" stroke="rgba(255,107,87,.5)" stroke-width="2" stroke-dasharray="4 4"/>
+    </svg>
+    <div class="tile card in" style="left:30px;top:62px;width:175px;--d:.5s"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><div>Application form<small>salary, amount, term</small></div></div>
+    <div class="tile card in" style="left:30px;top:208px;width:175px;--d:.7s"><svg viewBox="0 0 24 24" fill="none"><path d="M3 10l9-6 9 6M5 10v9h14v-9M9 19v-5h6v5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><div>Bank's own records<small>existing loans, cards</small></div></div>
+    <div class="platform pop" style="--d:.9s">Risk platform<small>rules + AI grade</small></div>
+    <div class="tile card in" style="left:470px;top:80px;width:148px;--d:1.1s"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><div>AECB bureau<small>credit report</small></div></div>
+    <div class="tile card in" style="left:470px;top:256px;width:148px;--d:1.3s;opacity:.8"><svg viewBox="0 0 24 24" fill="none" style="color:var(--stop)"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16" stroke="currentColor" stroke-width="1.5"/></svg><div>Open internet<small>no access</small></div></div>
+    <div class="lockb pop" style="--d:1.2s"><svg viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2.2"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="2.2"/></svg></div>
+    <div class="blocked pop" style="--d:1.4s">${I.x}</div>
+    <div class="bnd fadein" style="top:156px;--d:1.6s">Approved connection<br>(allow-listed)</div>
+    <div class="bnd fadein" style="top:322px;--d:1.7s;color:var(--stop)">Blocked</div>
+    ${[0,.7,1.4].map(o=>`<span class="dot" style="offset-path:path('M205 92 C 245 92, 240 170, 270 172');--d:${1.4+o}s"></span>`).join("")}
+    ${[0,.7,1.4].map(o=>`<span class="dot" style="offset-path:path('M205 238 C 245 238, 240 208, 270 206');--d:${1.7+o}s"></span>`).join("")}
+    ${[0,1.1].map(o=>`<span class="dot" style="offset-path:path('M470 110 L 442 110 C 425 110, 430 165, 420 168');--d:${2+o}s"></span>`).join("")}
+    <span class="dot bad" style="offset-path:path('M470 284 L 448 284');--d:2.3s"></span>
+  </div>
+  <div class="calc">
+    <div class="eyebrow in" style="--d:1.8s">The number that matters most</div>
+    <div class="f in" style="--d:1.9s">Debt burden = <b>monthly debt payments</b> ÷ <b>monthly salary</b></div>
+    ${P.map((p,i)=>`<div class="crow in" style="--d:${2.2+i*.35}s;--cc:${p.cc}">${av(p)}<div><div class="lbl">${p.pay} ÷ ${fmt(p.sal)}</div>
+      <div class="track"><i style="--w:${p.dbr/70*100}%;--d:${2.4+i*.35}s;${p.dbr>50?"background:var(--stop)":""}"></i><span class="cap" style="left:${50/70*100}%" ${i===0?'data-l="cap 50%"':""}></span></div></div>
+      <div class="val" style="${p.dbr>50?"color:var(--stop)":""}"><span data-count="${p.dbr}" data-delay="${2.4+i*.35}">0</span>%</div></div>`).join("")}
+    <div class="src fadein" style="--d:3.6s">If any fact is missing, the case goes to a person. Nothing is guessed.</div>
+  </div>
+</div>`});
+
+const g = 0.6;
+S.push({rail:2,dur:12500,cap:"The central bank's limits come first and no bank can relax them. <b>Omar breaks two:</b> his debts take 53% of his salary, and he asks for 22.2 times his salary.",
+html:`<div class="head"><div class="eyebrow in">Step 2 · Rule layer 1 · Central Bank of the UAE</div><h2 class="in" style="--d:.1s">The regulator's limits come <em>first</em></h2></div>
+<div class="lanegrid"><div class="in" style="--d:.25s">${lanes([["Debt burden","≤ 50%"],["Loan ÷ salary","≤ 20×"],["Term","≤ 48 mo"],["Bureau report","required"]],"cb",
+  (p,c)=>[p.dbr+"%",p.mult.toFixed(1)+"×","48","yes"][c],"",g)}</div>
+  <div class="card side in" style="--d:.5s">
+    <div class="t">Why Omar fails</div>
+    <div class="gauge"><svg width="240" height="125" fill="none">
+      <path d="M20 112 A100 100 0 0 1 220 112" stroke="rgba(255,255,255,.08)" stroke-width="16" stroke-linecap="round"/>
+      <path class="arc" d="M20 112 A100 100 0 0 1 220 112" stroke="#FF6B57" stroke-width="16" stroke-linecap="round" style="--off:${(314.16*(1-53/70)).toFixed(1)};--d:3.6s"/>
+      <line x1="174.8" y1="43.2" x2="189.8" y2="24.4" stroke="#EAF1F7" stroke-width="3" stroke-linecap="round"/>
+      <text x="196" y="22" fill="#EAF1F7" font-size="11" font-family="IBM Plex Mono,monospace">50%</text>
+    </svg><div class="big"><span data-count="53" data-delay="3.6">0</span>%</div><div class="sub">Omar's debt burden</div></div>
+    <div class="mbar"><div class="s">Loan as a multiple of salary · cap 20×</div>
+      <div class="track"><i style="--w:${22.2/26*100}%;--d:4.2s;background:var(--stop)"></i><span class="cap" style="left:${20/26*100}%"></span></div>
+      <div class="mono" style="color:var(--stop);font-weight:600">AED 200,000 ÷ 9,000 = 22.2×</div></div>
+    <div class="src">Source: CBUAE Regulation 29/2011</div>
+  </div></div>`});
+
+S.push({rail:3,dur:12000,cap:"The bank adds its own rules, set by its board. They can be <b>stricter</b> than the central bank, never looser. A looser rule is caught and blocked when the policy is loaded.",
+html:`<div class="head"><div class="eyebrow in">Step 3 · Rule layer 2 · The bank's own policy</div><h2 class="in" style="--d:.1s">The bank can be stricter. <em>Never looser.</em></h2></div>
+<div class="lanegrid"><div class="in" style="--d:.25s">${lanes([["Bureau score","≥ 560"],["Debt burden","≤ 50%"],["Age","≥ 21"]],"bank",
+  (p,c)=>[p.score,p.dbr+"%",[34,29,41][P.indexOf(p)]][c],"",g)}</div>
+  <div class="card side in" style="--d:.5s">
+    <div class="t">The tighten-only check</div>
+    <div class="s">What happens when a bank writes its own debt-burden limit:</div>
+    <div class="ruler">
+      <div class="zone" style="left:${(50-30)/30*290}px;right:0"></div>
+      <div class="axis"></div>
+      ${[30,40,50,60].map(v=>`<span class="tick" style="left:${(v-30)/30*290}px"></span><span class="tl" style="left:${(v-30)/30*290}px">${v}%</span>`).join("")}
+      <div class="reg" style="left:${(50-30)/30*290}px"><span>Central bank 50%</span></div>
+      <div class="mk g" style="left:${(45-30)/30*290}px;--d:3.4s"><i></i><b>45 ✓</b></div>
+      <div class="mk g" style="left:${(50-30)/30*290}px;--d:3.8s;top:44px"><i></i><b>50 ✓</b></div>
+      <div class="mk r" style="left:${(55-30)/30*290}px;--d:4.3s"><i></i><b>55 ✗</b></div>
+    </div>
+    <div class="stampbox" style="--d:5.2s">BLOCKED AT INTAKE</div>
+    <div class="s">A 55% rule would be flagged in the intake report, and the policy could not be approved until it is fixed.</div>
+  </div></div>`});
+
+S.push({rail:4,dur:11000,cap:"The last rule layer is the product's credit policy. All three pass. Rules are written as <b>plain comparisons</b> that risk staff can read and check.",
+html:`<div class="head"><div class="eyebrow in">Step 4 · Rule layer 3 · Credit policy for this product</div><h2 class="in" style="--d:.1s">The product rules credit staff <em>use every day</em></h2></div>
+<div class="lanegrid"><div class="in" style="--d:.25s">${lanes([["Bureau report age","≤ 90 days"],["Term","≤ 48 months"]],"cred",
+  (p,c)=>["12 days","48"][c],"",g)}</div>
+  <div class="card side in" style="--d:.5s">
+    <div class="t">Three layers, each one narrower</div>
+    <div class="funnel">
+      <div class="layer l1 in" style="--d:.9s">Central bank<b>REG.UAE.*</b></div>
+      <div class="layer l2 in" style="--d:1.1s">Bank policy<b>BANK.*</b></div>
+      <div class="layer l3 in" style="--d:1.3s">Credit policy<b>CRED.*</b></div>
+    </div>
+    <div class="s" style="margin-top:4px">One rule, as risk staff see it:</div>
+    <div class="code">
+      <span class="typing" style="--d:2.4s"><span class="k">id:</span> CRED.PL.001</span>
+      <span class="typing" style="--d:3.3s"><span class="k">rule:</span> <span class="s">"term_months &lt;= 48"</span></span>
+      <span class="typing" style="--d:4.2s"><span class="k">if broken:</span> decline</span>
+      <span class="typing" style="--d:5.1s"><span class="k">change needs:</span> maker + checker</span>
+    </div>
+  </div></div>`});
+
+const gx = n => ((n-0.5)/10*100).toFixed(2)+"%";
+S.push({rail:5,dur:11500,cap:"Separately, the AI model grades each customer from 1 (safest) to 10 (riskiest), and gives its reasons. <b>Rahul gets a 7</b> because of a late payment and a high debt burden.",
+html:`<div class="head"><div class="eyebrow in">Step 5 · The AI risk grade</div><h2 class="in" style="--d:.1s">The model grades the risk from <em>1 to 10</em></h2></div>
+<div class="scalewrap in" style="--d:.2s">
+  <div class="pinrow">${P.map((p,i)=>`<div class="gpin" style="left:${gx(p.grade)};--cc:${p.cc};--d:${1.4+i*.35}s">${av(p)}</div>`).join("")}</div>
+  <div class="scale">${Array.from({length:10},(_,i)=>`<div class="${i<6?"z1":i<8?"z2":"z3"}">${i+1}</div>`).join("")}</div>
+  <div class="scan"></div>
+  <div class="zl"><div class="a">1–6 · approve if the rules pass</div><div class="b">7–8 · a person reviews</div><div class="c">9–10 · recommend decline</div></div>
+</div>
+<div class="gtiles">${P.map((p,i)=>`<div class="card gt in" style="--d:${2.2+i*.25}s">${av(p)}
+  <div class="g" style="color:${p.grade>=7?"var(--refer)":"var(--ok)"}"><span data-count="${p.grade}" data-delay="${2.4+i*.25}">0</span><small>of 10</small></div>
+  <div style="font-size:12.5px;color:var(--muted)">Chance of not paying in a year: <b class="mono" style="color:var(--ink)">${p.pd}</b></div>
+  <div class="why">${p.why.map(w=>`<span class="${w[1]?"neg":""}">${w[0]}</span>`).join("")}</div></div>`).join("")}</div>`});
+
+S.push({rail:6,dur:13000,cap:"The two answers are combined and <b>the stricter one wins</b>. On the AI grade alone Omar looked fine. The central bank's limits say no, so the answer is no.",
+html:`<div class="head"><div class="eyebrow in">Step 6 · The decision</div><h2 class="in" style="--d:.1s">The rules always have <em>the last word</em></h2></div>
+<div class="merge">${P.map((p,i)=>{const d=.5+i*.3, rules=p.v==="stop"?"3 broken":"All passed", ai=`Grade ${p.grade}`, aiSays=p.grade>=7?"refer":"approve";
+  return `<div class="card mcol in" style="--d:${d}s"><div class="who">${av(p)}${p.name}</div>
+  <div class="ins"><div class="inp ${p.v==="stop"?"glow":""}" style="--d2:${3.4}s"><small>Rules say</small><b style="color:${p.v==="stop"?"var(--stop)":"var(--ok)"}">${rules}</b></div>
+    <div class="inp ${p.v==="stop"?"strike":""}" style="--d2:3.6s"><small>AI says</small><b style="color:${p.grade>=7?"var(--refer)":"var(--ok)"}">${ai} · ${aiSays}</b></div></div>
+  <svg class="conv" viewBox="0 0 300 46" preserveAspectRatio="none"><path d="M75 0 C 75 26, 150 20, 150 46" style="--d:${1.6+i*.2}s"/><path d="M225 0 C 225 26, 150 20, 150 46" style="--d:${1.6+i*.2}s"/></svg>
+  <div class="verdict v-${p.v} pop" style="--d:${4.2+i*.45}s">${vicon(p.v)}${p.vt}</div>
+  <div class="note fadein" style="--d:${4.6+i*.45}s">${p.note}</div></div>`}).join("")}</div>
+<div class="law in" style="--d:6.2s">The AI can make a decision <em>stricter</em>. It can never approve what the rules forbid.</div>`});
+
+S.push({rail:7,dur:15000,cap:"A decline is only a recommendation: <b>a person makes the final call.</b> Every step goes into an audit log where each entry is locked to the one before, so any later change is caught.",
+html:`<div class="head"><div class="eyebrow in">Step 7 · People decide, everything is recorded</div><h2 class="in" style="--d:.1s">Machines do the routine. <em>People make the calls.</em></h2></div>
+<div class="s8grid"><div>
+  ${[["Approved automatically","No manual work needed for a clean case like Amira's.",'<svg viewBox="0 0 24 24" fill="none" style="color:var(--ok)"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'],
+     ["An underwriter reviews","They see the grade, the reasons and the full file, and decide.",'<svg viewBox="0 0 24 24" fill="none" style="color:var(--refer)"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="2"/><path d="M5 20c1-4 3.6-6 7-6s6 2 7 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'],
+     ["A credit officer confirms","The decline is confirmed. Omar can be offered a smaller loan that fits the limits.",'<svg viewBox="0 0 24 24" fill="none" style="color:var(--stop)"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="2"/><path d="M5 20c1-4 3.6-6 7-6s6 2 7 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>']
+    ].map((r,i)=>`<div class="card hrow in" style="--d:${.4+i*.35}s">${av(P[i])}<div class="arrow"></div><div class="role">${r[2]}</div><div class="tx"><b>${r[0]}</b><span>${r[1]}</span></div></div>`).join("")}
+</div>
+<div><div class="eyebrow in" style="--d:.6s;margin-bottom:10px">Audit log · example entries</div>
+  <div class="chain" id="chain">
+    ${[["#118","assess Amira → approve","a41f…"],["#119","assess Rahul → refer","9a07…"],["#120","assess Omar → <span class='dec'>decline</span>","e31c…"],["#121","officer confirms Omar","52fd…"],["#122","underwriter opens Rahul","b860…"]]
+      .map((b,i)=>`${i?`<div class="link in" style="--d:${1.2+i*.45}s"></div>`:""}<div class="blk in" data-i="${i}" style="--d:${1+i*.45}s"><span class="n">${b[0]}</span><span>${b[1]}</span><span class="h">${b[2]}</span></div>`).join("")}
+  </div>
+  <div class="chainmsg" id="chainmsg">Each entry carries a fingerprint of the one before it.</div>
+</div></div>`,
+enter(){ // tamper demo
+  const t1 = setTimeout(()=>{const b=document.querySelector('#chain .blk[data-i="2"]'); if(!b) return; b.classList.add("tam");
+    b.querySelector(".dec").outerHTML='<span class="edit dec">approve</span>';
+    const m=document.getElementById("chainmsg"); m.textContent="Someone edits entry #120 after the fact…"; m.classList.add("alert");},6200);
+  const t2 = setTimeout(()=>{document.querySelectorAll('#chain .blk').forEach(b=>{if(+b.dataset.i>2)b.classList.add("broke")});
+    document.querySelectorAll('#chain .link').forEach((l,i)=>{if(i>=2)l.classList.add("broke")});
+    document.getElementById("chainmsg").textContent="…and every fingerprint after it stops matching. The change is caught immediately.";},8000);
+  return [t1,t2];
+}});
+
+S.push({rail:8,dur:16000,cap:"Same rules, same model, same record for every customer. The CBUAE limits are real (to be verified again before client use); the bank, customers and bank rules are examples.",
+html:`<div class="head"><div class="eyebrow in">Summary</div><h2 class="in" style="--d:.1s">Three applicants, <em>three clear answers</em></h2></div>
+<div class="sumrow">${P.map((p,i)=>`<div class="card sc in" style="--d:${.35+i*.25}s"><div class="who">${av(p)}<div><b>${p.name}</b><span>AED ${fmt(p.loan)} on AED ${fmt(p.sal)} a month</span></div></div>
+  <div class="verdict v-${p.v} pop" style="--d:${.9+i*.25}s;font-size:16px;padding:9px">${vicon(p.v)}${p.vt}</div>
+  <div class="line">${["Rules passed · grade 1 · debt burden 32%","Rules passed · grade 7 · late payment this year","3 rules broken · grade 4 · 53% debt, 22.2× salary"][i]}</div></div>`).join("")}</div>
+<div class="jobs">${[["Decide","What you just saw: rules + grade, human sign-off",1],["Monitor","Group limits, sector caps, approval authority, staging"],["Stress","What if bad loans double or property falls 30%?"],["Benchmark","Too rigid or too risky versus regulator and peers?"],["Explain","Plain-English answers that cite their evidence"],["Govern","Maker-checker, policy intake, audit trail"]]
+  .map((j,i)=>`<div class="job pop ${j[2]?"me":""}" style="--d:${1.6+i*.15}s"><b>${j[0]}</b><span>${j[1]}</span></div>`).join("")}</div>
+<div class="truth fadein" style="--d:2.8s">
+  <div><i style="background:var(--ok)"></i><span><b>Real:</b> the CBUAE limits (debt burden 50%, 20× salary, 48 months, bureau report; Regulation 29/2011) and the decisions, which came from running the platform's code.</span></div>
+  <div><i style="background:var(--refer)"></i><span><b>Example:</b> the bank, the three customers and the bank's own rules. The AI grade is an illustrative scorecard, to be replaced by a trained and validated model.</span></div>
+</div>`});
+
+/* ---------- mount ---------- */
+const scenesEl = document.getElementById("scenes");
+scenesEl.innerHTML = S.map((s,i)=>`<section class="scene ${s.cls||""}" data-i="${i}" aria-hidden="true">${s.html}</section>`).join("");
+const railEl = document.getElementById("rail");
+const RAIL = ["Applicants","Data in","Central bank","Bank policy","Credit policy","AI grade","Decision","People + audit","Summary"];
+railEl.insertAdjacentHTML("beforeend", RAIL.map((r,i)=>`<button class="node" data-r="${i}"><i></i>${r}</button>`).join(""));
+
+/* ---------- scale stage to fit ---------- */
+const stage = document.getElementById("stage");
+function fit(){
+  const vv = window.visualViewport;
+  const w = Math.min(innerWidth, vv ? vv.width : innerWidth), h = Math.min(innerHeight, vv ? vv.height : innerHeight);
+  const pad = w > 700 ? 56 : 16;               // room so nothing touches or slips under the viewer's edges
+  const s = Math.min((w - pad) / 1280, (h - pad) / 720);
+  stage.style.transform = `scale(${s})`;
+}
+addEventListener("resize", fit); if(window.visualViewport) visualViewport.addEventListener("resize", fit); fit();
+
+/* ---------- player ---------- */
+let cur = -1, playing = true, timer = null, timeouts = [], countTimers = [];
+const prog = document.getElementById("prog"), cap = document.getElementById("caption");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function countUp(root){
+  root.querySelectorAll("[data-count]").forEach(el=>{
+    const end = +el.dataset.count, delay = (+el.dataset.delay||0)*1000, dur = 1100;
+    el.textContent = reduce ? fmt(end) : "0";
+    if(reduce) return;
+    const t = setTimeout(()=>{
+      const t0 = performance.now();
+      const step = now=>{ const k=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-k,3);
+        el.textContent = fmt(Math.round(end*e)); if(k<1 && !stage.classList.contains("paused")) requestAnimationFrame(step); else el.textContent=fmt(end); };
+      requestAnimationFrame(step);
+    }, delay);
+    countTimers.push(t);
+  });
+}
+function go(i){
+  i = Math.max(0, Math.min(S.length-1, i));
+  [...timeouts, ...countTimers].forEach(clearTimeout); timeouts=[]; countTimers=[];
+  const els = scenesEl.children;
+  [...els].forEach((el,k)=>{el.classList.remove("on"); el.classList.toggle("past", k<i); el.setAttribute("aria-hidden","true")});
+  // re-render scene so its animations and stateful bits restart cleanly
+  const fresh = document.createElement("section");
+  fresh.className = `scene ${S[i].cls||""}`; fresh.dataset.i = i; fresh.innerHTML = S[i].html;
+  els[i].replaceWith(fresh); void fresh.offsetWidth;
+  fresh.classList.add("on"); fresh.setAttribute("aria-hidden","false");
+  cur = i;
+  countUp(fresh);
+  if(S[i].enter) timeouts = S[i].enter() || [];
+  cap.innerHTML = S[i].cap; cap.classList.remove("swap"); void cap.offsetWidth; cap.classList.add("swap");
+  document.getElementById("count").innerHTML = `<b>${String(i+1).padStart(2,"0")}</b> / ${S.length}`;
+  const r = S[i].rail;
+  railEl.querySelectorAll(".node").forEach((n,k)=>{n.classList.toggle("now",k===r); n.classList.toggle("done",k<r)});
+  document.getElementById("railfill").style.width = r<0 ? "0" : (r/8*89)+"%";
+  document.getElementById("prev").disabled = i===0;
+  document.getElementById("next").disabled = i===S.length-1;
+  schedule();
+}
+let remaining = 0, startedAt = 0;
+function icon(){
+  document.getElementById("playsvg").innerHTML = playing ? I.pause : I.play;
+  document.getElementById("play").setAttribute("aria-label", playing ? "Pause" : "Play");
+}
+function schedule(){
+  clearTimeout(timer);
+  stage.classList.remove("paused");
+  prog.classList.remove("run"); prog.style.width = ""; void prog.offsetWidth;
+  prog.style.setProperty("--dur", S[cur].dur+"ms");
+  remaining = S[cur].dur;
+  if(cur===S.length-1){ prog.style.width="100%"; playing=false; icon(); return; }
+  if(playing){ prog.classList.add("run"); startedAt = performance.now(); timer = setTimeout(()=>go(cur+1), remaining); }
+  icon();
+}
+function setPlaying(p){
+  playing = p; icon();
+  if(p){
+    if(cur===S.length-1){ go(0); return; }
+    stage.classList.remove("paused");
+    prog.classList.add("run"); startedAt = performance.now();
+    timer = setTimeout(()=>go(cur+1), remaining);
+  } else {
+    stage.classList.add("paused");
+    clearTimeout(timer); remaining = Math.max(400, remaining - (performance.now()-startedAt));
+  }
+}
+document.getElementById("play").onclick = ()=>setPlaying(!playing);
+document.getElementById("next").onclick = ()=>go(cur+1);
+document.getElementById("prev").onclick = ()=>go(cur-1);
+document.getElementById("restart").onclick = ()=>{ playing=true; go(0); };
+railEl.addEventListener("click", e=>{const n=e.target.closest(".node"); if(n) go(S.findIndex(s=>s.rail===+n.dataset.r));});
+addEventListener("keydown", e=>{
+  if(e.key==="ArrowRight") go(cur+1);
+  else if(e.key==="ArrowLeft") go(cur-1);
+  else if(e.key===" " && !e.target.closest("button")){ e.preventDefault(); setPlaying(!playing); }
+});
+document.getElementById("playsvg").innerHTML = I.pause;
+const start = /s=(\d+)/.exec(location.hash);
+go(start ? +start[1] : 0);
+})();
+</script>
+
+</body>
+</html>
